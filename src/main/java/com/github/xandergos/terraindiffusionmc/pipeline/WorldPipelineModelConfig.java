@@ -3,10 +3,10 @@ package com.github.xandergos.terraindiffusionmc.pipeline;
 import com.google.gson.Gson;
 import com.google.gson.annotations.SerializedName;
 
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Loads model-specific WorldPipeline constants from a JSON resource.
@@ -15,7 +15,7 @@ import java.util.Objects;
  * to a different trained model can be done by replacing a single config file.
  */
 public final class WorldPipelineModelConfig {
-    private static final String CONFIG_RESOURCE_PATH = "/world_pipeline_config.json";
+    private static final String CONFIG_FILE_NAME = "world_pipeline_config.json";
     private static final Gson GSON = new Gson();
     private static final ConfigJson CONFIG = loadConfig();
 
@@ -88,13 +88,16 @@ public final class WorldPipelineModelConfig {
     }
 
     private static ConfigJson loadConfig() {
-        try (InputStream inputStream = WorldPipelineModelConfig.class.getResourceAsStream(CONFIG_RESOURCE_PATH);
-             InputStreamReader inputStreamReader = new InputStreamReader(Objects.requireNonNull(inputStream), StandardCharsets.UTF_8)) {
-            ConfigJson config = GSON.fromJson(inputStreamReader, ConfigJson.class);
-            validateConfig(config);
-            return config;
+        try {
+            ModelAssetManager.ensureAssetsReady();
+            Path configPath = ModelAssetManager.resolveAssetPath(CONFIG_FILE_NAME);
+            try (Reader configReader = Files.newBufferedReader(configPath, StandardCharsets.UTF_8)) {
+                ConfigJson config = GSON.fromJson(configReader, ConfigJson.class);
+                validateConfig(config);
+                return config;
+            }
         } catch (Exception exception) {
-            throw new IllegalStateException("Failed to load model config from " + CONFIG_RESOURCE_PATH, exception);
+            throw new IllegalStateException("Failed to load model config from " + CONFIG_FILE_NAME, exception);
         }
     }
 

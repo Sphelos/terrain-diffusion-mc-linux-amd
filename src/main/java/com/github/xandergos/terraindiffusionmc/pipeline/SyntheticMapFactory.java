@@ -4,10 +4,11 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.Reader;
 import java.util.Arrays;
-import java.util.Objects;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Generates synthetic climate conditioning maps from Perlin noise quantile-matched
@@ -68,8 +69,10 @@ public final class SyntheticMapFactory {
 
     private static synchronized void loadDataIfNeeded() {
         if (dataLoaded) return;
-        try (InputStream is = SyntheticMapFactory.class.getResourceAsStream("/pipeline_data.json");
-             InputStreamReader reader = new InputStreamReader(Objects.requireNonNull(is))) {
+        try {
+            ModelAssetManager.ensureAssetsReady();
+            Path pipelineDataPath = ModelAssetManager.resolveAssetPath("pipeline_data.json");
+            try (Reader reader = Files.newBufferedReader(pipelineDataPath, StandardCharsets.UTF_8)) {
             JsonObject data = new Gson().fromJson(reader, JsonObject.class);
             int nQ = data.get("n_quantiles").getAsInt();
             JsonArray dataArr = data.getAsJsonArray("data_quantile_tables");
@@ -85,6 +88,7 @@ public final class SyntheticMapFactory {
             cachedTempStdP1 = data.get("temp_std_p1").getAsFloat();
             cachedTempStdP99 = data.get("temp_std_p99").getAsFloat();
             dataLoaded = true;
+            }
         } catch (Exception e) {
             throw new RuntimeException("Failed to load pipeline_data.json", e);
         }

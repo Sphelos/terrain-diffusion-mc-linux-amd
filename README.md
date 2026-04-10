@@ -15,7 +15,12 @@ The mod works purely server-side and can be used on multiplayer servers. The rel
 ## Installation
 
 1. Download the mod jar from the [releases](https://github.com/xandergos/terrain-diffusion-mc/releases) page and place it in your Minecraft `mods/` folder. Make sure the Minecraft version matches.
-2. Launch Minecraft, create a world, and select the **Terrain Diffusion** world type. Click **Customize** to set the `World Scale` (see [Per-world settings](#per-world-settings) below).
+2. Launch Minecraft while online at least once so the model assets can be downloaded (to `.minecraft/terrain-diffusion-models`).
+3. Create a **Terrain Diffusion** world.
+
+## Creating a World
+
+When creating a world, select the **Terrain Diffusion** world type. Click **Customize** to set the `World Scale` (see [Per-world settings](#per-world-settings) below).
 
 ## Exploring the World
 
@@ -40,6 +45,10 @@ inference.device=gpu
 # faster generation.
 inference.offload_models=true
 
+# Validate SHA-256 for pre-existing files in .minecraft/terrain-diffusion-models.
+# Set to false if you want to provide custom models/config files without hash checks.
+validate_model=true
+
 # Port for the local terrain explorer web UI (/td-explore).
 explorer.port=19801
 ```
@@ -59,14 +68,13 @@ This value is saved with the world save and affects:
 ## Building from Source
 
 1. Clone this repository.
-2. Download the ONNX model files from [HuggingFace](https://huggingface.co/xandergos/terrain-diffusion-30m-onnx). Only the `.onnx` files are needed (`coarse_model.onnx`, `base_model.onnx`, `decoder_model.onnx`). Place them in `src/main/resources/onnx/`.
-3. Build with Gradle:
+2. Build with Gradle (online connection required during build to fetch the pinned model manifest metadata):
 
 ```
 ./gradlew build
 ```
 
-The build step runs an ONNX optimization pass before packaging the models into the jar. The released jar bundles `onnxruntime_gpu` (CUDA). ONNX Runtime also supports other execution providers (DirectML, TensorRT, ROCm, etc.). See the [ORT provider documentation](https://onnxruntime.ai/docs/execution-providers/) if you want to build with a different backend.
+At runtime, the mod downloads required model assets from the pinned Hugging Face commit on first launch into `.minecraft/terrain-diffusion-models` and verifies SHA-256 checksums before use. The released jar bundles `onnxruntime_gpu` (CUDA). ONNX Runtime also supports other execution providers (DirectML, TensorRT, ROCm, etc.). See the [ORT provider documentation](https://onnxruntime.ai/docs/execution-providers/) if you want to build with a different backend.
 
 ## Note For Mod Developers
 

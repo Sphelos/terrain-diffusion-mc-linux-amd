@@ -95,9 +95,10 @@ public final class WorldPipeline implements AutoCloseable {
     /** Loads its own models (e.g. for tests). Caller must close. */
     public WorldPipeline(long seed) {
         this.seed = seed & 0xFFFFFFFFFFFFFFFFL;
-        this.coarseModel = new OnnxModel("/onnx/coarse_model.onnx", "coarse");
-        this.baseModel = new OnnxModel("/onnx/base_model.onnx", "base");
-        this.decoderModel = new OnnxModel("/onnx/decoder_model.onnx", "decoder");
+        ModelAssetManager.ensureAssetsReady();
+        this.coarseModel = new OnnxModel(ModelAssetManager.resolveAssetPath("coarse_model.onnx"), "coarse");
+        this.baseModel = new OnnxModel(ModelAssetManager.resolveAssetPath("base_model.onnx"), "base");
+        this.decoderModel = new OnnxModel(ModelAssetManager.resolveAssetPath("decoder_model.onnx"), "decoder");
         this.ownModels = true;
         this.syntheticMapFactory = new SyntheticMapFactory(this.seed);
         this.tileStore = new MemoryTileStore();

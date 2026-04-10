@@ -15,9 +15,9 @@ public final class PipelineModels implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger(PipelineModels.class);
 
-    private static final String COARSE_PATH = "/onnx/coarse_model.onnx";
-    private static final String BASE_PATH = "/onnx/base_model.onnx";
-    private static final String DECODER_PATH = "/onnx/decoder_model.onnx";
+    private static final String COARSE_FILE_NAME = "coarse_model.onnx";
+    private static final String BASE_FILE_NAME = "base_model.onnx";
+    private static final String DECODER_FILE_NAME = "decoder_model.onnx";
 
     private static volatile PipelineModels INSTANCE;
     private static volatile CountDownLatch loadDone;
@@ -74,9 +74,10 @@ public final class PipelineModels implements AutoCloseable {
     }
 
     private PipelineModels() {
-        this.coarseModel = new OnnxModel(COARSE_PATH, "coarse");
-        this.baseModel = new OnnxModel(BASE_PATH, "base");
-        this.decoderModel = new OnnxModel(DECODER_PATH, "decoder");
+        ModelAssetManager.ensureAssetsReady();
+        this.coarseModel = new OnnxModel(ModelAssetManager.resolveAssetPath(COARSE_FILE_NAME), "coarse");
+        this.baseModel = new OnnxModel(ModelAssetManager.resolveAssetPath(BASE_FILE_NAME), "base");
+        this.decoderModel = new OnnxModel(ModelAssetManager.resolveAssetPath(DECODER_FILE_NAME), "decoder");
     }
 
     public OnnxModel getCoarseModel() { return coarseModel; }

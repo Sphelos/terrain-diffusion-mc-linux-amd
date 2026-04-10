@@ -16,6 +16,7 @@ public final class TerrainDiffusionConfig {
     private static final Properties PROPERTIES = new Properties();
     private static final String DEFAULT_INFERENCE_DEVICE = "gpu";
     private static final boolean DEFAULT_OFFLOAD_MODELS = true;
+    private static final boolean DEFAULT_VALIDATE_MODEL = true;
     private static final int DEFAULT_EXPLORER_PORT = 19801;
 
     static {
@@ -44,6 +45,11 @@ public final class TerrainDiffusionConfig {
         return readInt("explorer.port", DEFAULT_EXPLORER_PORT);
     }
 
+    /** Whether to validate SHA-256 for pre-existing local model files before use. */
+    public static boolean validateModel() {
+        return readBoolean("validate_model", DEFAULT_VALIDATE_MODEL);
+    }
+
     private static void loadDefaults() {
         boolean loadedFromResource = false;
         try (InputStream in = TerrainDiffusionConfig.class.getResourceAsStream(RESOURCE_PATH)) {
@@ -57,6 +63,7 @@ public final class TerrainDiffusionConfig {
 
         if (!loadedFromResource) {
             PROPERTIES.setProperty("inference.device", DEFAULT_INFERENCE_DEVICE);
+            PROPERTIES.setProperty("validate_model", String.valueOf(DEFAULT_VALIDATE_MODEL));
         }
     }
 
