@@ -1,22 +1,48 @@
 # Terrain Diffusion Fabric Mod
 
 This is a Minecraft Fabric mod integrating [Terrain Diffusion](https://github.com/xandergos/terrain-diffusion).
-The mod works purely server-side and can be used on multiplayer servers. The released version utilizes CUDA for GPU acceleration.
 
 ## Requirements
 
-- Minecraft with [Fabric](https://fabricmc.net/) and the [Fabric API Mod](https://modrinth.com/mod/fabric-api) installed.
-- An NVIDIA GPU with CUDA is strongly recommended. CPU inference is supported but slow (see [Configuration)](#configuration). AMD GPUs and Macs may be supported in the future.
+- Minecraft with [Fabric](https://fabricmc.net/) and the [Fabric API Mod](https://modrinth.com/mod/fabric-api) installed
+- An NVIDIA GPU is strongly recommended. CPU inference works but is slow (see Configuration below to use the CPU).
+- VRAM needed: 1.5GB
 
-**If you have an NVIDIA GPU**:
-- Download CUDA 12.x **(Not 13)**: https://developer.nvidia.com/cuda-toolkit-archive
-- Download cuDNN 9.x: https://developer.nvidia.com/cudnn
+## Setup Instructions (Windows + NVIDIA GPU only)
 
-## Installation
+> **On Linux?** Follow the [Official ONNX Runtime instructions](https://onnxruntime.ai/docs/install/#cuda-and-cudnn). The required CUDA and cuDNN versions are the same as windows.
 
-1. Download the mod jar from the [releases](https://github.com/xandergos/terrain-diffusion-mc/releases) page and place it in your Minecraft `mods/` folder. Make sure the Minecraft version matches.
-2. Launch Minecraft while online at least once so the model assets can be downloaded (to `.minecraft/terrain-diffusion-models`).
-3. Create a **Terrain Diffusion** world.
+#### Step 1: Install CUDA 12
+
+Go to the [CUDA Toolkit Archive](https://developer.nvidia.com/cuda-toolkit-archive) and download any **12.x** version.
+
+> ⚠️ Do not install version 13 — it isn't supported yet.
+
+#### Step 2: Install cuDNN 9
+
+Go to the [cuDNN download page](https://developer.nvidia.com/cudnn) and download any **9.x** version.
+
+#### Step 3: Add CUDA to PATH
+
+After installing, find your CUDA `bin` folder. It should look like this:
+
+`C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\bin`
+
+The version number (e.g. `v12.9`) may differ slightly, that's fine. Before copying the path, confirm the folder contains a file named `cudart64_12.dll`.
+
+Then add this path to your system PATH. ([How do I edit PATH on Windows?](https://www.architectryan.com/2018/03/17/add-to-the-path-on-windows-10/))
+
+#### Step 4: Add cuDNN to PATH
+
+Find your cuDNN folder. It should look something like this:
+
+`C:\Program Files\NVIDIA\CUDNN\v9.x\bin\12.x\x64`
+
+`9.x` and `12.x` should be your cuDNN and CUDA version respectively. Confirm the folder contains `cudnn64_9.dll`, then add it to PATH the same way.
+
+#### Step 5: Restart your PC
+
+You may need to restart your PC for PATH changes to take effect. Once you're back, you're all set.
 
 ## Creating a World
 
@@ -63,7 +89,22 @@ This value is saved with the world save and affects:
 
 - how many real-world meters each block represents (`scale=1` => `30m/block`, `scale=2` => `15m/block`, etc.)
 - world max height for newly created worlds (assumes tallest point is 10000 real-world meters)
-- 2 is recommended to start, or 1 for smaller worlds
+- 2 is recommended for a good balance of scale and playability. Use 1 for smaller, more compressed worlds.
+
+## Common Issues
+**A dynamic link library (DLL) initialization routine failed**
+
+This can happen for some older Java versions. Please update to the most recent version of Java 21 or higher. The [latest Microsoft OpenJDK 21](https://learn.microsoft.com/en-us/java/openjdk/download) version is known to work.
+
+**LoadLibrary failed with error 126**
+
+This is typically due to an improper CUDA or cuDNN installation. Things to check:
+- CUDA is in PATH, and the folder contains `cudart64_12.dll`
+- cuDNN is in PATH, and the folder contains `cudnn64_9.dll`
+- CUDA version is 12.x
+- cuDNN version is 9.x
+
+**If your issue is still not resolved, please [raise it here](https://github.com/xandergos/terrain-diffusion-mc/issues/new).**
 
 ## Building from Source
 
