@@ -22,6 +22,7 @@ public final class PipelineModels implements AutoCloseable {
     private static volatile PipelineModels INSTANCE;
     private static volatile CountDownLatch loadDone;
     private static volatile boolean loadStarted;
+    private static volatile Throwable loadFailure;
 
     private final OnnxModel coarseModel;
     private final OnnxModel baseModel;
@@ -32,6 +33,7 @@ public final class PipelineModels implements AutoCloseable {
         if (INSTANCE != null) return;
         if (loadStarted) return;
         loadStarted = true;
+        loadFailure = null;
         loadDone = new CountDownLatch(1);
         Thread t = new Thread(() -> {
             try {
@@ -41,6 +43,8 @@ public final class PipelineModels implements AutoCloseable {
                 long elapsed = System.currentTimeMillis() - start;
                 LOG.info("Terrain-diffusion ML models loaded in {} ms", elapsed);
             } catch (Throwable e) {
+                loadFailure = e;
+                loadStarted = false;
                 LOG.error("Failed to load terrain-diffusion models", e);
             } finally {
                 loadDone.countDown();
@@ -66,6 +70,13 @@ public final class PipelineModels implements AutoCloseable {
                 Thread.currentThread().interrupt();
                 throw new RuntimeException("Interrupted waiting for terrain-diffusion models", e);
             }
+        }
+        if (INSTANCE == null) {
+            Throwable failureCause = loadFailure;
+            if (failureCause != null) {
+                throw new IllegalStateException("Failed to load terrain-diffusion models", failureCause);
+            }
+            throw new IllegalStateException("Terrain-diffusion models did not load");
         }
     }
 
@@ -95,6 +106,7 @@ public final class PipelineModels implements AutoCloseable {
         } finally {
             INSTANCE = null;
             loadStarted = false;
+            loadFailure = null;
         }
     }
 }
