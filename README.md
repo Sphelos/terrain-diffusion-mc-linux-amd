@@ -34,7 +34,7 @@ The version number (e.g. `v12.9`) may differ slightly, that's fine. Before copyi
 
 Then add this path to your system PATH. ([How do I edit PATH on Windows?](https://www.architectryan.com/2018/03/17/add-to-the-path-on-windows-10/))
 
-> Ensure that you **add** this folder to the system **path** or **PATH** variable, as shown in the link above. Do **not** create a new variable.
+> Ensure that you **edit** the system **path** or **PATH** variable, adding this **folder** to the list, as shown in the link above. Do **not** create a new variable.
 
 #### Step 4: Add cuDNN to PATH
 
