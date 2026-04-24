@@ -1,28 +1,28 @@
 # AMD Linux MIGraphX Bring-Up
 
-This repo now has enough hooks to test a custom ONNX Runtime build on AMD Linux:
+This fork has the hooks needed to test a custom ONNX Runtime build on AMD Linux:
 
 - `inference.provider=auto|migraphx|rocm|cuda|directml`
 - `inference.native_path=/path/to/custom/ort/natives`
 - `-PonnxRuntimeVersion=...` to match the Java classes to the custom native build
 
-## Current assessment
+## Current Assessment
 
-- Host machine: ROCm runtime sees the discrete RX 7900 XT as `gfx1100`.
-- Project build: `./gradlew build` succeeds on this machine.
+- Host GPU: ROCm runtime sees the discrete RX 7900 XT as `gfx1100`.
+- Project build: `./gradlew build` succeeds.
 - Remaining blocker: the stock Java ORT dependencies published to Maven are CPU and CUDA only.
 - Practical AMD path: build ONNX Runtime from source with MIGraphX enabled, then point the mod at those native libraries.
 
-## Recommended ONNX Runtime target
+## Recommended ONNX Runtime Target
 
 Use an ONNX Runtime release branch that matches the installed ROCm/MIGraphX stack.
 
-For this machine:
+For the tested setup:
 
 - ROCm installed: `7.2.x`
 - Best match from the current ORT MIGraphX docs: `onnxruntime` `1.23.2`
 
-## Expected custom build flow
+## Expected Custom Build Flow
 
 Clone ONNX Runtime on the matching release branch:
 
@@ -50,7 +50,7 @@ The ORT docs also show the minimal MIGraphX build form as:
 ./build.sh --config Release --parallel --use_migraphx --migraphx_home /opt/rocm
 ```
 
-## Terrain Diffusion test flow
+## Terrain Diffusion Test Flow
 
 After building custom ORT, build this mod against the matching Java API version:
 
@@ -74,7 +74,7 @@ inference.provider=rocm
 
 The mod now attempts reflective `addMIGraphX(int)` registration first when `inference.provider=migraphx` or Linux `auto` is used.
 
-## Likely files needed in `inference.native_path`
+## Likely Files Needed in `inference.native_path`
 
 The Java loader expects the ORT shared libraries in one directory. In practice this means the folder should contain at least:
 

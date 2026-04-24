@@ -19,7 +19,7 @@ This release packages the Linux AMD fork changes needed to run Terrain Diffusion
   - `-PuseMigraphx=true`
 - patched ONNX Runtime Java binding support for `addMIGraphX()`
 
-## Tested Local Setup
+## Verified Setup
 
 - OS: CachyOS Linux
 - Kernel: `7.0.1-1-cachyos`
@@ -54,7 +54,7 @@ The native directory used during testing contained:
 
 - `World Scale 2` is the recommended baseline.
 - Higher world scale values smooth terrain more aggressively and can produce very large oceans.
-- This release is intended for local/personal AMD Linux use, not as an official upstream-supported distribution.
+- This release is intended for AMD Linux use, not as an official upstream-supported distribution.
 
 ## Credit
 

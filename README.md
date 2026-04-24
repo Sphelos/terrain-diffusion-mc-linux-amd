@@ -1,8 +1,6 @@
 # Terrain Diffusion MC Linux AMD Fork
 
-This repository is a personal Linux AMD fork of [xandergos/terrain-diffusion-mc](https://github.com/xandergos/terrain-diffusion-mc).
-
-Goal: run Terrain Diffusion world generation on AMD GPUs under Linux through ROCm/MIGraphX, while keeping the original project history intact and all upstream credit visible.
+Terrain Diffusion MC for AMD GPUs on Linux through ROCm/MIGraphX.
 
 ## Upstream Credit
 
@@ -24,9 +22,7 @@ This fork adds and documents:
 
 It does not replace upstream. If you want the original project and its normal release stream, use the upstream repository.
 
-## Tested Setup
-
-This fork has been tested on the following local setup:
+## Verified Setup
 
 - OS: CachyOS Linux
 - Kernel: `7.0.1-1-cachyos`
@@ -37,9 +33,7 @@ This fork has been tested on the following local setup:
 - Fabric Loader: `0.19.2`
 - Fabric API: `0.141.3+1.21.11`
 
-## Which Build Should I Use?
-
-This fork is focused on the Linux AMD build:
+## Build Matrix
 
 | Build | Supports | Setup required |
 | --- | --- | --- |
@@ -64,7 +58,7 @@ Memory requirements vary with world scale and chunk generation pressure. On the 
 - GPU VRAM used by inference: roughly `1.5-2 GB`
 - Minecraft RAM allocation used for testing: `12 GB`
 
-## Linux AMD Usage
+## Quick Start
 
 1. Install the `linux-amd` jar in your Minecraft `mods/` folder.
 2. Launch once so the mod can create its config and download models.
@@ -75,12 +69,6 @@ Memory requirements vary with world scale and chunk generation pressure. On the 
 inference.device=gpu
 inference.provider=migraphx
 inference.native_path=/absolute/path/to/onnxruntime-migraphx-native-directory
-```
-
-On the tested machine, `inference.native_path` pointed at:
-
-```properties
-/home/sphelos/Coding/AmdTerrainMCLinux/runtime/onnxruntime-migraphx-1.23.2-linux-x64
 ```
 
 That directory contained:
@@ -157,7 +145,7 @@ Linux AMD build for this fork:
 
 This expects a matching patched ONNX Runtime Java artifact to be available through `mavenLocal()`.
 
-## Linux AMD Bring-Up Notes
+## Linux AMD Notes
 
 Detailed notes for the AMD/Linux port are in [docs/amd-linux-migraphx.md](docs/amd-linux-migraphx.md).
 
