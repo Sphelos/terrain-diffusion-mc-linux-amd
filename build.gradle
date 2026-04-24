@@ -7,18 +7,28 @@ import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import java.security.MessageDigest
 
+def useCuda = project.hasProperty('useCuda') && project.property('useCuda').toString().toLowerCase() == 'true'
+def useDml = project.hasProperty('useDml') && project.property('useDml').toString().toLowerCase() == 'true'
 def useCpu = project.hasProperty('useCpu') && project.property('useCpu').toString().toLowerCase() == 'true'
 def withSourcesJar = project.hasProperty('withSourcesJar') && project.property('withSourcesJar').toString().toLowerCase() == 'true'
+
+if ([useCuda, useDml, useCpu].count { it } > 1) {
+    throw new GradleException("Only one of -PuseCuda, -PuseDml, or -PuseCpu may be specified at a time.")
+}
+if (!useDml && !useCpu && !useCuda) useDml = true
+
+println "Build variant: ${useCuda ? 'CUDA' : useDml ? 'DirectML (Windows)' : 'CPU'}"
 def modelRepositorySlug = 'xandergos/terrain-diffusion-30m-onnx'
 def modelRepositoryRevision = 'ad2df557eca5645f588766101cf3bc3682455c3e'
 def generatedManifestDirectory = layout.buildDirectory.dir('generated/model-assets').get().asFile
 def generatedManifestFile = new File(generatedManifestDirectory, 'model-assets-manifest.json')
 
-version = project.mod_version
+def buildVariant = useCuda ? 'cuda' : useDml ? 'windows' : 'cpu'
+version = "${project.mod_version}-${buildVariant}+${project.minecraft_version}"
 group = project.maven_group
 
 base {
-    archivesName = project.archives_base_name + (useCpu ? '-cpu' : '')
+    archivesName = project.archives_base_name
 }
 
 loom {
@@ -28,6 +38,12 @@ loom {
         "terrain-diffusion-mc" {
             sourceSet sourceSets.main
             sourceSet sourceSets.client
+        }
+    }
+
+    runs {
+        configureEach {
+            ideConfigGenerated true
         }
     }
 }
@@ -44,6 +60,7 @@ repositories {
     // Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
     // See https://docs.gradle.org/current/userguide/declaring_repositories.html
     // for more information about repositories.
+    flatDir { dirs 'libs'}
 }
 
 dependencies {
@@ -54,12 +71,15 @@ dependencies {
 
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-    if (useCpu) {
-        implementation "com.microsoft.onnxruntime:onnxruntime:1.20.0"
-        include "com.microsoft.onnxruntime:onnxruntime:1.20.0"
-    } else {
+    if (useCuda) {
         implementation "com.microsoft.onnxruntime:onnxruntime_gpu:1.20.0"
         include "com.microsoft.onnxruntime:onnxruntime_gpu:1.20.0"
+    } else if (useCpu) {
+        implementation "com.microsoft.onnxruntime:onnxruntime:1.20.0"
+        include "com.microsoft.onnxruntime:onnxruntime:1.20.0"
+    } else if (useDml) {
+        implementation 'com.microsoft.onnxruntime:onnxruntime-dml:1.0'
+        include 'com.microsoft.onnxruntime:onnxruntime-dml:1.0'
     }
 }
 
@@ -68,6 +88,7 @@ processResources {
     inputs.property "version", project.version
     inputs.property "minecraft_version", project.minecraft_version
     inputs.property "loader_version", project.loader_version
+    inputs.property "build_variant", buildVariant
     filteringCharset "UTF-8"
     from(generatedManifestFile) {
         into ''
@@ -77,6 +98,9 @@ processResources {
         expand "version": project.version,
                 "minecraft_version": project.minecraft_version,
                 "loader_version": project.loader_version
+    }
+    filesMatching("build-variant.properties") {
+        expand "build_variant": buildVariant
     }
 }
 
@@ -111,6 +135,10 @@ jar {
     from("LICENSE") {
         rename { "${it}_${project.archivesBaseName}" }
     }
+}
+
+tasks.withType(JavaExec).configureEach {
+    systemProperty 'log4j2.configurationFile', rootProject.file('log4j2-dev.xml').absolutePath
 }
 
 // configure the maven publication
@@ -188,6 +216,20 @@ tasks.register('generateModelAssetManifest') {
         ]
         generatedManifestFile.text = JsonOutput.prettyPrint(JsonOutput.toJson(manifestPayload))
     }
+}
+
+def isWindows = System.getProperty('os.name').toLowerCase().startsWith('windows')
+def gradlewExecutable = rootProject.file(isWindows ? 'gradlew.bat' : 'gradlew').absolutePath
+
+['Cuda', 'Dml', 'Cpu'].each { variant ->
+    tasks.register("build${variant}", Exec) {
+        workingDir rootProject.projectDir
+        commandLine gradlewExecutable, 'build', "-Puse${variant}=true"
+    }
+}
+
+tasks.register('buildAll') {
+    dependsOn 'buildCuda', 'buildDml', 'buildCpu'
 }
 
 String sha256Hex(byte[] fileBytes) {
