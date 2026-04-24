@@ -12,8 +12,12 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.Locale;
 
 /**
  * Thin wrapper around ONNX Runtime with aggressive VRAM optimization.
@@ -55,6 +59,7 @@ public final class OnnxModel implements AutoCloseable {
         this.name = name;
         try {
             long start = System.currentTimeMillis();
+            configureOnnxRuntimeNativePath();
             this.env = OrtEnvironment.getEnvironment(OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR);
             byte[] sourceModelBytes = Files.readAllBytes(modelFilePath);
             OptimizedModelLoadResult initialOptimizedModelLoadResult = optimizeModelAtRuntime(sourceModelBytes, false);
@@ -187,6 +192,25 @@ public final class OnnxModel implements AutoCloseable {
         return implementationVersion == null ? "unknown" : implementationVersion;
     }
 
+    private static void configureOnnxRuntimeNativePath() {
+        String configuredNativePath = TerrainDiffusionConfig.inferenceNativePath();
+        if (configuredNativePath == null) {
+            return;
+        }
+
+        String existingNativePath = System.getProperty("onnxruntime.native.path");
+        if (existingNativePath == null || existingNativePath.isBlank()) {
+            System.setProperty("onnxruntime.native.path", configuredNativePath);
+            LOG.info("Using custom ONNX Runtime native path: {}", configuredNativePath);
+        } else if (!existingNativePath.equals(configuredNativePath)) {
+            LOG.warn(
+                    "Ignoring inference.native_path='{}' because onnxruntime.native.path is already set to '{}'",
+                    configuredNativePath,
+                    existingNativePath
+            );
+        }
+    }
+
     /**
      * Computes a lowercase SHA-256 hex string for deterministic cache naming.
      */
@@ -266,40 +290,124 @@ public final class OnnxModel implements AutoCloseable {
 
     private static void addGpuProvider(OrtSession.SessionOptions opts) throws OrtException {
         boolean gpuRequired = "gpu".equals(TerrainDiffusionConfig.inferenceDevice());
+        String configuredProvider = TerrainDiffusionConfig.inferenceProvider();
         boolean added = false;
 
+        for (String provider : resolveProviderOrder(configuredProvider)) {
+            if (tryAddProvider(opts, provider)) {
+                added = true;
+                break;
+            }
+        }
+        if (gpuRequired && !added) {
+            throw new OrtException(
+                    "inference.device=gpu but no configured GPU provider is available. " +
+                    "Tried " + resolveProviderOrder(configuredProvider) + ". " +
+                    "Use a matching ONNX Runtime build, set inference.provider, or set inference.device=cpu.");
+        }
+        if (!added) {
+            LOG.info("Terrain diffusion inference: CPU (fallback)");
+            LOG.warn("No GPU provider loaded. Check drivers and that the mod jar is the GPU build.");
+        }
+    }
+
+    private static List<String> resolveProviderOrder(String configuredProvider) {
+        String normalizedProvider = configuredProvider == null
+                ? "auto"
+                : configuredProvider.trim().toLowerCase(Locale.ROOT);
+        List<String> providers = new ArrayList<>();
+        if (!normalizedProvider.isEmpty() && !"auto".equals(normalizedProvider)) {
+            providers.add(normalizedProvider);
+            return providers;
+        }
+
+        String osName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        if (osName.contains("linux")) {
+            providers.add("migraphx");
+            providers.add("rocm");
+            providers.add("cuda");
+            providers.add("directml");
+        } else if (osName.contains("win")) {
+            providers.add("cuda");
+            providers.add("directml");
+            providers.add("migraphx");
+            providers.add("rocm");
+        } else {
+            providers.add("cuda");
+            providers.add("migraphx");
+            providers.add("rocm");
+            providers.add("directml");
+        }
+        return providers;
+    }
+
+    private static boolean tryAddProvider(OrtSession.SessionOptions opts, String provider) {
+        return switch (provider) {
+            case "migraphx" -> tryAddMigraphxProvider(opts);
+            case "rocm" -> tryAddRocmProvider(opts);
+            case "cuda" -> tryAddCudaProvider(opts);
+            case "directml" -> tryAddDirectMlProvider(opts);
+            default -> {
+                LOG.warn(
+                        "Unknown inference.provider '{}'; supported values are auto, migraphx, rocm, cuda, directml",
+                        provider
+                );
+                yield false;
+            }
+        };
+    }
+
+    private static boolean tryAddMigraphxProvider(OrtSession.SessionOptions opts) {
         try {
-            OrtCUDAProviderOptions cudaOpts = new OrtCUDAProviderOptions(0);
+            Method addMigraphxMethod = opts.getClass().getMethod("addMIGraphX", int.class);
+            addMigraphxMethod.invoke(opts, 0);
+            LOG.info("Terrain diffusion inference: GPU (MIGraphX)");
+            return true;
+        } catch (NoSuchMethodException noSuchMethodException) {
+            LOG.warn("MIGraphX not available in this ONNX Runtime Java build");
+            return false;
+        } catch (Throwable t) {
+            Throwable cause = t.getCause() != null ? t.getCause() : t;
+            LOG.warn("MIGraphX not available: {} - {}", cause.getClass().getSimpleName(), cause.getMessage());
+            return false;
+        }
+    }
+
+    private static boolean tryAddRocmProvider(OrtSession.SessionOptions opts) {
+        try {
+            opts.addROCM(0);
+            LOG.info("Terrain diffusion inference: GPU (ROCm)");
+            return true;
+        } catch (Throwable t) {
+            LOG.warn("ROCm not available: {} - {}", t.getClass().getSimpleName(), t.getMessage());
+            return false;
+        }
+    }
+
+    private static boolean tryAddCudaProvider(OrtSession.SessionOptions opts) {
+        try (OrtCUDAProviderOptions cudaOpts = new OrtCUDAProviderOptions(0)) {
             // Only grow the BFC arena by exactly what is needed, never pre-allocate.
             cudaOpts.add("arena_extend_strategy", "kSameAsRequested");
             // Heuristic: fast startup, no exhaustive benchmarking, workspace-efficient.
             cudaOpts.add("cudnn_conv_algo_search", "HEURISTIC");
             cudaOpts.add("do_copy_in_default_stream", "1");
             opts.addCUDA(cudaOpts);
-            cudaOpts.close();
-            added = true;
             LOG.info("Terrain diffusion inference: GPU (CUDA)");
+            return true;
         } catch (Throwable t) {
             LOG.warn("CUDA not available: {} - {}", t.getClass().getSimpleName(), t.getMessage());
+            return false;
         }
+    }
 
-        if (!added) {
-            try {
-                opts.addDirectML(0);
-                added = true;
-                LOG.info("Terrain diffusion inference: GPU (DirectML)");
-            } catch (Throwable t) {
-                LOG.warn("DirectML not available: {} - {}", t.getClass().getSimpleName(), t.getMessage());
-            }
-        }
-        if (gpuRequired && !added) {
-            throw new OrtException(
-                    "inference.device=gpu but neither CUDA nor DirectML is available. " +
-                    "Use the GPU build or set inference.device=cpu.");
-        }
-        if (!added) {
-            LOG.info("Terrain diffusion inference: CPU (fallback)");
-            LOG.warn("No GPU provider loaded. Check drivers and that the mod jar is the GPU build.");
+    private static boolean tryAddDirectMlProvider(OrtSession.SessionOptions opts) {
+        try {
+            opts.addDirectML(0);
+            LOG.info("Terrain diffusion inference: GPU (DirectML)");
+            return true;
+        } catch (Throwable t) {
+            LOG.warn("DirectML not available: {} - {}", t.getClass().getSimpleName(), t.getMessage());
+            return false;
         }
     }
 

@@ -13,6 +13,7 @@ public final class TerrainDiffusionConfig {
     private static final String RESOURCE_PATH = "/" + FILE_NAME;
     private static final Properties PROPERTIES = new Properties();
     private static final String DEFAULT_INFERENCE_DEVICE = "gpu";
+    private static final String DEFAULT_INFERENCE_PROVIDER = "auto";
     private static final boolean DEFAULT_OFFLOAD_MODELS = true;
     private static final boolean DEFAULT_VALIDATE_MODEL = true;
     private static final int DEFAULT_EXPLORER_PORT = 19801;
@@ -32,6 +33,21 @@ public final class TerrainDiffusionConfig {
     /** Inference device: "cpu", "gpu", or "auto" (try GPU then fall back to CPU). */
     public static String inferenceDevice() {
         return readString("inference.device", DEFAULT_INFERENCE_DEVICE);
+    }
+
+    /** Preferred GPU execution provider: "auto", "migraphx", "rocm", "cuda", or "directml". */
+    public static String inferenceProvider() {
+        return readString("inference.provider", DEFAULT_INFERENCE_PROVIDER);
+    }
+
+    /** Optional directory containing custom ONNX Runtime native libraries. */
+    public static String inferenceNativePath() {
+        String value = PROPERTIES.getProperty("inference.native_path");
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /** Whether to offload inactive models from VRAM between pipeline stages. */
@@ -72,6 +88,7 @@ public final class TerrainDiffusionConfig {
 
         if (!loadedFromResource) {
             PROPERTIES.setProperty("inference.device", DEFAULT_INFERENCE_DEVICE);
+            PROPERTIES.setProperty("inference.provider", DEFAULT_INFERENCE_PROVIDER);
             PROPERTIES.setProperty("validate_model", String.valueOf(DEFAULT_VALIDATE_MODEL));
             PROPERTIES.setProperty("tile_size", String.valueOf(DEFAULT_TILE_SIZE));
         }
