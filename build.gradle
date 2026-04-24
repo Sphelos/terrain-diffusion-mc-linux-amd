@@ -10,23 +10,27 @@ import java.security.MessageDigest
 def useCuda = project.hasProperty('useCuda') && project.property('useCuda').toString().toLowerCase() == 'true'
 def useDml = project.hasProperty('useDml') && project.property('useDml').toString().toLowerCase() == 'true'
 def useCpu = project.hasProperty('useCpu') && project.property('useCpu').toString().toLowerCase() == 'true'
+def useMigraphx = project.hasProperty('useMigraphx') && project.property('useMigraphx').toString().toLowerCase() == 'true'
 def withSourcesJar = project.hasProperty('withSourcesJar') && project.property('withSourcesJar').toString().toLowerCase() == 'true'
 def onnxRuntimeVersion = project.hasProperty('onnxRuntimeVersion')
         ? project.property('onnxRuntimeVersion').toString()
         : '1.20.0'
+def onnxRuntimeMigraphxVersion = project.hasProperty('onnxRuntimeMigraphxVersion')
+        ? project.property('onnxRuntimeMigraphxVersion').toString()
+        : '1.23.2-migraphxfix'
 
-if ([useCuda, useDml, useCpu].count { it } > 1) {
-    throw new GradleException("Only one of -PuseCuda, -PuseDml, or -PuseCpu may be specified at a time.")
+if ([useCuda, useDml, useCpu, useMigraphx].count { it } > 1) {
+    throw new GradleException("Only one of -PuseCuda, -PuseDml, -PuseCpu, or -PuseMigraphx may be specified at a time.")
 }
-if (!useDml && !useCpu && !useCuda) useDml = true
+if (!useDml && !useCpu && !useCuda && !useMigraphx) useDml = true
 
-println "Build variant: ${useCuda ? 'CUDA' : useDml ? 'DirectML (Windows)' : 'CPU'}"
+println "Build variant: ${useCuda ? 'CUDA' : useDml ? 'DirectML (Windows)' : useMigraphx ? 'Linux AMD MIGraphX' : 'CPU'}"
 def modelRepositorySlug = 'xandergos/terrain-diffusion-30m-onnx'
 def modelRepositoryRevision = 'ad2df557eca5645f588766101cf3bc3682455c3e'
 def generatedManifestDirectory = layout.buildDirectory.dir('generated/model-assets').get().asFile
 def generatedManifestFile = new File(generatedManifestDirectory, 'model-assets-manifest.json')
 
-def buildVariant = useCuda ? 'cuda' : useDml ? 'windows' : 'cpu'
+def buildVariant = useCuda ? 'cuda' : useDml ? 'windows' : useMigraphx ? 'linux-amd' : 'cpu'
 version = "${project.mod_version}-${buildVariant}+${project.minecraft_version}"
 group = project.maven_group
 
@@ -63,6 +67,7 @@ repositories {
     // Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
     // See https://docs.gradle.org/current/userguide/declaring_repositories.html
     // for more information about repositories.
+    mavenLocal()
     flatDir { dirs 'libs'}
 }
 
@@ -77,6 +82,9 @@ dependencies {
     if (useCuda) {
         implementation "com.microsoft.onnxruntime:onnxruntime_gpu:${onnxRuntimeVersion}"
         include "com.microsoft.onnxruntime:onnxruntime_gpu:${onnxRuntimeVersion}"
+    } else if (useMigraphx) {
+        implementation "com.microsoft.onnxruntime:onnxruntime:${onnxRuntimeMigraphxVersion}"
+        include "com.microsoft.onnxruntime:onnxruntime:${onnxRuntimeMigraphxVersion}"
     } else if (useCpu) {
         implementation "com.microsoft.onnxruntime:onnxruntime:${onnxRuntimeVersion}"
         include "com.microsoft.onnxruntime:onnxruntime:${onnxRuntimeVersion}"
