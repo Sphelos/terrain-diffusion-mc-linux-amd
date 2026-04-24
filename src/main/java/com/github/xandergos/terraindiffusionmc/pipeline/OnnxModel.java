@@ -18,6 +18,7 @@ import java.util.List;
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Thin wrapper around ONNX Runtime with aggressive VRAM optimization.
@@ -31,6 +32,12 @@ public final class OnnxModel implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger(OnnxModel.class);
     private static final String OPTIMIZED_MODELS_DIR_NAME = "onnx-cache";
+
+    private static volatile String resolvedInferenceProvider = null;
+    private static final AtomicBoolean providerLoggedOnce = new AtomicBoolean(false);
+    private static final AtomicBoolean cudaWarnLoggedOnce = new AtomicBoolean(false);
+    private static final AtomicBoolean dmlWarnLoggedOnce = new AtomicBoolean(false);
+    private static final AtomicBoolean noGpuWarnLoggedOnce = new AtomicBoolean(false);
 
     // GPU slot: when offload_models=true, only one session is alive at a time.
     private static final Object GPU_SLOT_LOCK = new Object();
@@ -123,6 +130,21 @@ public final class OnnxModel implements AutoCloseable {
         }
     }
 
+    /** Returns the resolved inference provider name, or {@code "unknown"} if not yet determined. */
+    public static String getResolvedInferenceProvider() {
+        String provider = resolvedInferenceProvider;
+        return provider != null ? provider : "unknown";
+    }
+
+    private static void setResolvedProviderOnce(String provider) {
+        if (resolvedInferenceProvider == null) {
+            resolvedInferenceProvider = provider;
+        }
+        if (providerLoggedOnce.compareAndSet(false, true)) {
+            LOG.info("Terrain diffusion inference: {}", provider);
+        }
+    }
+
     /**
      * Loads model sessions for the active inference device configuration.
      */
@@ -132,6 +154,7 @@ public final class OnnxModel implements AutoCloseable {
             sessionOptions.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
             this.cpuSession = env.createSession(modelBytes, sessionOptions);
             this.gpuSession = null;
+            setResolvedProviderOnce("CPU");
             LOG.info("ONNX model '{}' loaded on CPU ({} KB) in {} ms",
                     name, modelBytes.length / 1024, System.currentTimeMillis() - startMillis);
             return;
@@ -392,10 +415,13 @@ public final class OnnxModel implements AutoCloseable {
             cudaOpts.add("cudnn_conv_algo_search", "HEURISTIC");
             cudaOpts.add("do_copy_in_default_stream", "1");
             opts.addCUDA(cudaOpts);
-            LOG.info("Terrain diffusion inference: GPU (CUDA)");
+            setResolvedProviderOnce("CUDA");
             return true;
         } catch (Throwable t) {
-            LOG.warn("CUDA not available: {} - {}", t.getClass().getSimpleName(), t.getMessage());
+            if (cudaWarnLoggedOnce.compareAndSet(false, true)) {
+                LOG.warn("CUDA not available: {} - {}. This is expected if you are not using a CUDA build.",
+                        t.getClass().getSimpleName(), t.getMessage());
+            }
             return false;
         }
     }
@@ -403,10 +429,13 @@ public final class OnnxModel implements AutoCloseable {
     private static boolean tryAddDirectMlProvider(OrtSession.SessionOptions opts) {
         try {
             opts.addDirectML(0);
-            LOG.info("Terrain diffusion inference: GPU (DirectML)");
+            setResolvedProviderOnce("DirectML");
             return true;
         } catch (Throwable t) {
-            LOG.warn("DirectML not available: {} - {}", t.getClass().getSimpleName(), t.getMessage());
+            if (dmlWarnLoggedOnce.compareAndSet(false, true)) {
+                LOG.warn("DirectML not available: {} - {}. This is expected if you are not using a DirectML build.",
+                        t.getClass().getSimpleName(), t.getMessage());
+            }
             return false;
         }
     }
